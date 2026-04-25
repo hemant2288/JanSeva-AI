@@ -1,9 +1,12 @@
 from fastapi import FastAPI
-from fastapi .middleware.cors import CORSMiddleware
-from database import save_complaint
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from pymongo import MongoClient
+import os
 
 app = FastAPI()
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -12,35 +15,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def classify(text):
-    text = text.lower()
-    if "bijli" in text or "electric" in text:
-        return "Electricity"
-    elif "water" in text or "pani" in text:
-        return "Water"
-    elif "road" in text:
-        return "Roads"
-    else:
-        return "Public Service"
+# ================= MongoDB Connection =================
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 
-def priority(text):
-    if "urgent" in text or "emergency" in text:
-        return "High"
-    return "Normal"
+client = MongoClient(MONGO_URL)
+db = client["janseva_ai"]
+collection = db["complaints"]
 
-@app.post("/analyze")
-def analyze(data: dict):
-    text = data["complaint"]
+# ================= Data Model =================
+class Complaint(BaseModel):
+    name: str
+    issue: str
+    category: str
 
-    category = classify(text)
-    pr = priority(text)
+# ================= Routes =================
 
-    result = {
-        "complaint": text,
-        "category": category,
-        "priority": pr
-    }
+# Home
+@app.get("/")
+def home():
+    return {"message": "JanSeva AI Backend Running 🚀"}
 
-    save_complaint(result)
+# Test
+@app.get("/test")
+def test():
+    return {"status": "Working fine"}
 
-    return result
+# Submit Complaint
+@app.post("/submit")
+def submit_complaint(data: Complaint):
+    complaint = data.dict()
+    collection.insert_one(complaint)
+    return {"message": "Complaint submitted successfully"}
+
+# Get All Complaints
+@app.get("/complaints")
+def get_complaints():
+    data = list(collection.find({}, {"_id": 0}))
+    return {"data": data}
