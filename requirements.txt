@@ -5,3 +5,4 @@ torch
 pymongo
 python-multipart
 deep-translator
+python-dotenv
